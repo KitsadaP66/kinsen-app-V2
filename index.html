@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- โค้ดป้องกันเบราว์เซอร์จำ Cache เก่า -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>ระบบพนักงาน - ก๋วยเตี๋ยวเรือกินเส้น</title>
     
     <!-- Tailwind CSS -->
@@ -14,7 +18,7 @@
     <!-- Google Fonts: Prompt -->
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- React & ReactDOM (เปลี่ยนมาใช้ cdnjs เพื่อความเสถียร ไม่จอขาว) -->
+    <!-- React & ReactDOM -->
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     
@@ -95,7 +99,6 @@
     </script>
 </head>
 <body>
-    <!-- ดักกรณี React โหลดไม่ขึ้น จะไม่แสดงหน้าจอขาวโล่ง แต่จะแสดงข้อความนี้แทน -->
     <div id="root">
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #884c37; text-align: center; padding: 20px;">
             <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 3rem; margin-bottom: 1rem; color: #b0794c;"></i>
@@ -108,20 +111,49 @@
         const { useState, useEffect, useRef } = React;
 
         // ==========================================
-        // 📌 API KEY, GOOGLE SHEETS & LINE WEBHOOK
+        // 🛡️ ระบบป้องกันจอขาวโล่ง (Error Boundary)
         // ==========================================
-        const apiKey = ""; // ปล่อยว่างไว้ ระบบจะจัดการให้
-        const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1gDsI9p-pPyEe8Cz6CXFFU4CsXEKZWaVmQFuJJyv2e7g/export?format=csv&gid=910117764"; 
-        
-        // ลิงก์ Webhook สำหรับส่ง LINE Notify (หรือ Google Apps Script)
-        const LINE_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbw5QTDK0R33zRvPrJqznXhMNG_ptnUe5BtJNrFzT48pNXqOeRXSDNmhgUK_WUJWuTG2/exec";
-        
-        // ลิงก์ Webhook สำหรับส่งข้อมูลสต็อกไปบันทึกลง Google Sheets
-        const STOCK_WEBHOOK_URL = "ใส่_LINK_WEB_APP_ของ_SHEET_สต็อกที่นี่";
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null };
+            }
+            static getDerivedStateFromError(error) {
+                return { hasError: true, error };
+            }
+            componentDidCatch(error, errorInfo) {
+                console.error("React Error Caught:", error, errorInfo);
+            }
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div style={{ padding: "30px", color: "#b91c1c", backgroundColor: "#fee2e2", minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center", fontFamily: "'Prompt', sans-serif" }}>
+                            <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: "4rem", marginBottom: "20px", color: "#ef4444" }}></i>
+                            <h2 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "10px" }}>ระบบขัดข้องชั่วคราว</h2>
+                            <p style={{ marginBottom: "20px", fontSize: "14px", maxWidth: "80%", wordBreak: "break-all" }}>{this.state.error && this.state.error.toString()}</p>
+                            <button onClick={() => window.location.reload(true)} style={{ padding: "12px 24px", backgroundColor: "#ef4444", color: "white", borderRadius: "10px", fontWeight: "bold", border: "none", cursor: "pointer", boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
+                                <i className="fa-solid fa-rotate-right mr-2"></i> รีเฟรชหน้าจอ (Refresh)
+                            </button>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
 
         // ==========================================
-        // ฐานข้อมูลระบบที่อ้างอิงจากรูปภาพ
+        // 📌 API KEY, GOOGLE SHEETS & LINE WEBHOOK
         // ==========================================
+        const apiKey = ""; 
+        
+        // 📌 ลิงก์ชีตตารางงาน (ดึงข้อมูลถูกต้องแล้ว)
+        const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1gDsI9p-pPyEe8Cz6CXFFU4CsXEKZWaVmQFuJJyv2e7g/export?format=csv&gid=910117764"; 
+        
+        const LINE_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbw5QTDK0R33zRvPrJqznXhMNG_ptnUe5BtJNrFzT48pNXqOeRXSDNmhgUK_WUJWuTG2/exec";
+        
+        // ⚠️ ลิงก์ส่งข้อมูลสต็อก (ต้องทำตามขั้นตอนที่ 2 ด้านล่างเพื่อเอาลิงก์ Web App มาใส่)
+        const STOCK_WEBHOOK_URL = "ใส่_LINK_WEB_APP_ของ_SHEET_สต็อกที่นี่";
+
         const employees = ["พร", "เปิ้ล", "น้ำ", "กิ๊ฟ", "กล้วยไม้", "ไอซ์", "ป้านาง"]; 
 
         const rulesList = [
@@ -216,7 +248,6 @@
             return schedule;
         };
 
-        // GPS Distance Calculation (Haversine Formula)
         const calculateDistance = (lat1, lon1, lat2, lon2) => {
             const R = 6371e3; 
             const p1 = lat1 * Math.PI/180;
@@ -244,7 +275,6 @@
             const [isSubmittingStock, setIsSubmittingStock] = useState(false);
             const [stockSubmitSuccess, setStockSubmitSuccess] = useState(false);
 
-            // ฟังก์ชันหาวันที่ปัจจุบัน
             const getTodayStr = () => {
                 const today = new Date();
                 const year = today.getFullYear();
@@ -263,7 +293,6 @@
             const videoRef = useRef(null);
             const streamRef = useRef(null);
             
-            // พิกัดร้าน (ต.ไชยมงคล อ.เมือง จ.นครราชสีมา)
             const shopLocation = { lat: 14.862949192655888, lng: 102.07131386662192 };
             const MAX_RADIUS_METERS = 100;
 
@@ -281,7 +310,6 @@
                 }
             };
 
-            // Fetch Schedule Data
             useEffect(() => {
                 const loadSchedule = async () => {
                     setIsLoading(true);
@@ -402,7 +430,6 @@
                 loadSchedule();
             }, [selectedDateStr.substring(0, 7)]); 
 
-            // Checklist Persistence
             useEffect(() => {
                 if (currentUser && selectedDateStr) {
                     const savedKey = `checklist_${currentUser}_${selectedDateStr}`;
@@ -441,7 +468,6 @@
                 return `${months[parseInt(month, 10) - 1]} ${parseInt(year, 10) + 543}`;
             };
 
-            // AI Functions (Gemini API)
             const generateAiResponse = async (promptQuery) => {
                 const query = promptQuery || aiInput.trim();
                 if (!query) return;
@@ -481,6 +507,16 @@
                 }
                 setIsAiLoading(false);
                 setTimeout(() => aiEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+            };
+
+            const getParsedHTML = (markdown) => {
+                if (window.marked && typeof window.marked.parse === 'function') {
+                    return window.marked.parse(markdown);
+                }
+                if (window.marked && typeof window.marked === 'function') {
+                    return window.marked(markdown);
+                }
+                return markdown;
             };
 
             const handleStockChange = (item, value) => {
@@ -652,6 +688,8 @@
                     );
                 } else {
                     const role = rolesData[currentDayData.roleId];
+                    if (!role) return null; // Safety check
+
                     const progressTotal = role.tasks.length + sharedTasks.length;
                     const progressChecked = Object.values(checkedTasks).filter(Boolean).length;
                     const progressPercent = Math.round((progressChecked / progressTotal) * 100) || 0;
@@ -756,7 +794,7 @@
                                     let bgClass = "bg-gray-50 text-gray-300 border border-dashed border-gray-200"; 
                                     if(dayData.status === "off") bgClass = "bg-red-50 text-red-500 border border-red-200";
                                     else if(dayData.status === "leave") bgClass = "bg-orange-50 text-orange-500 border border-orange-200";
-                                    else if(dayData.status === "work" && dayData.roleId) bgClass = rolesData[dayData.roleId].bgLight + " " + rolesData[dayData.roleId].text + " border border-current opacity-80";
+                                    else if(dayData.status === "work" && dayData.roleId && rolesData[dayData.roleId]) bgClass = rolesData[dayData.roleId].bgLight + " " + rolesData[dayData.roleId].text + " border border-current opacity-80";
 
                                     return (
                                         <button key={`day-${day}`} onClick={() => { setSelectedDateStr(dateStr); setCurrentTab('daily'); }}
@@ -765,7 +803,7 @@
                                             <span className={`text-sm font-bold ${isSelected ? 'text-wood-800' : ''}`}>{day}</span>
                                             {dayData.status === "off" && <span className="text-[8px] font-bold">OFF</span>}
                                             {dayData.status === "leave" && <span className="text-[8px] font-bold">ลา</span>}
-                                            {dayData.status === "work" && dayData.roleId && <i className={`fa-solid ${rolesData[dayData.roleId].icon} text-[10px] mt-0.5`}></i>}
+                                            {dayData.status === "work" && dayData.roleId && rolesData[dayData.roleId] && <i className={`fa-solid ${rolesData[dayData.roleId].icon} text-[10px] mt-0.5`}></i>}
                                         </button>
                                     );
                                 })}
@@ -903,6 +941,7 @@
                 }
 
                 const role = rolesData[currentDayData.roleId];
+                if (!role) return null; // Safety check
 
                 return (
                     <div className="p-4 pb-24 animate-fade-in">
@@ -991,7 +1030,7 @@
                                 {isAiLoading ? (
                                     <div className="flex items-center gap-2 text-gray-500 text-sm ml-4 py-2"><i className="fa-solid fa-circle-notch fa-spin text-orange-400"></i> เจ๊กำลังคิดคำพูดให้นะ...</div>
                                 ) : (
-                                    <div className="text-sm text-gray-700 prose prose-sm ml-4" dangerouslySetInnerHTML={{ __html: window.marked ? window.marked.parse(aiResponse) : aiResponse }}></div>
+                                    <div className="text-sm text-gray-700 prose prose-sm ml-4" dangerouslySetInnerHTML={{ __html: getParsedHTML(aiResponse) }}></div>
                                 )}
                             </div>
                         )}
@@ -1066,7 +1105,13 @@
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        
+        // ครอบ App ด้วย ErrorBoundary เพื่อป้องกันจอขาว
+        root.render(
+            <ErrorBoundary>
+                <App />
+            </ErrorBoundary>
+        );
     </script>
 </body>
 </html>
